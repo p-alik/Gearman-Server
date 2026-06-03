@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        perl-version: ["5.40", "5.38", "5.36", "5.34", "5.32", "5.30"]
+    name: Perl ${{ matrix.perl-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl-version }}
+
+      - run: perl -V
+
+      - name: Install dependencies
+        run: |
+          cpanm --quiet --notest Devel::Cover::Report::Coveralls
+          cpanm --quiet --notest --installdeps .
+
+      - name: Build
+        run: |
+          perl Makefile.PL
+          make
+
+      - name: Test with coverage
+        run: PERL5OPT=-MDevel::Cover=-coverage,statement,branch,condition,path,subroutine prove -b -r -s t
+
+      - name: Report coverage to Coveralls
+        if: success() && matrix.perl-version == '5.40'
+        run: cover -report coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
